@@ -4,18 +4,24 @@ import './App.scss';
 import usersFromServer from './api/users';
 import todosFromServer from './api/todos';
 import { TodoList } from './components/TodoList';
-import { Todo, User } from './types/Todo';
+import { Todo } from './types/Todo';
 import classNames from 'classnames';
 
 export const App = () => {
-  const initialTodos: Todo[] = todosFromServer.map(todo => {
-    const user = usersFromServer.find(u => u.id === todo.userId);
+  // FIX 1: Безпечне створення initialTodos
+  // Ми спочатку мапимо, а потім фільтруємо ті, де юзера не знайдено.
+  // Таким чином TypeScript знає, що в фінальному масиві user точно є.
+  const initialTodos: Todo[] = todosFromServer
+    .map(todo => {
+      const user = usersFromServer.find(u => u.id === todo.userId);
 
-    return {
-      ...todo,
-      user: user as User,
-    };
-  });
+      return {
+        ...todo,
+        user, // Тут тип User | undefined
+      };
+    })
+    // Залишаємо тільки ті тудушки, де є юзер
+    .filter((todo): todo is Todo => !!todo.user);
 
   const [todos, setTodos] = useState<Todo[]>(initialTodos);
   const [title, setTitle] = useState('');
@@ -48,20 +54,19 @@ export const App = () => {
 
     const selectedUser = usersFromServer.find(user => user.id === userId);
 
+    // Додаткова перевірка безпеки
     if (!selectedUser) {
       return;
     }
 
-    // FIX 1: Правильна генерація ID
-    // Знаходимо максимальний ID серед існуючих. Якщо масив пустий — беремо 0.
     const maxId = Math.max(...todos.map(todo => todo.id), 0);
 
     const newTodo: Todo = {
-      id: maxId + 1, // Додаємо 1 до максимального
+      id: maxId + 1,
       title: title.trim(),
       userId: userId,
       completed: false,
-      user: selectedUser,
+      user: selectedUser, // Тут ми впевнені, що юзер є
     };
 
     setTodos(currentTodos => [...currentTodos, newTodo]);
@@ -75,41 +80,67 @@ export const App = () => {
 
       <form onSubmit={handleSubmit}>
         <div className="field">
-          <input
-            type="text"
-            data-cy="titleInput"
-            // FIX 2: Додали placeholder
-            placeholder="Todo title"
-            value={title}
-            onChange={handleTitleChange}
-            className={classNames({ 'is-danger': hasTitleError })}
-          />
-          {hasTitleError && <span className="error">Please enter a title</span>}
+          {/* FIX 2: Додали label і id */}
+          <label htmlFor="titleInput" className="label">
+            Title
+          </label>
+
+          <div className="control">
+            <input
+              type="text"
+              id="titleInput" // Зв'язуємо з label
+              data-cy="titleInput"
+              placeholder="Todo title"
+              value={title}
+              onChange={handleTitleChange}
+              className={classNames('input', { 'is-danger': hasTitleError })}
+            />
+          </div>
+          {hasTitleError && (
+            <span className="help is-danger">Please enter a title</span>
+          )}
         </div>
 
         <div className="field">
-          <select
-            data-cy="userSelect"
-            value={userId}
-            onChange={handleUserChange}
-            className={classNames({ 'is-danger': hasUserError })}
-          >
-            <option value="0" disabled>
-              Choose a user
-            </option>
-            {usersFromServer.map(user => (
-              <option value={user.id} key={user.id}>
-                {user.name}
-              </option>
-            ))}
-          </select>
+          {/* FIX 2: Додали label і id */}
+          <label htmlFor="userSelect" className="label">
+            User
+          </label>
 
-          {hasUserError && <span className="error">Please choose a user</span>}
+          <div className="control">
+            <div className="select">
+              <select
+                id="userSelect" // Зв'язуємо з label
+                data-cy="userSelect"
+                value={userId}
+                onChange={handleUserChange}
+                className={classNames({ 'is-danger': hasUserError })}
+              >
+                <option value="0" disabled>
+                  Choose a user
+                </option>
+                {usersFromServer.map(user => (
+                  <option value={user.id} key={user.id}>
+                    {user.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {hasUserError && (
+            <span className="help is-danger">Please choose a user</span>
+          )}
         </div>
 
-        <button type="submit" data-cy="submitButton">
-          Add
-        </button>
+        <div className="control">
+          <button
+            type="submit"
+            className="button is-primary"
+            data-cy="submitButton"
+          >
+            Add
+          </button>
+        </div>
       </form>
 
       <TodoList todos={todos} />
